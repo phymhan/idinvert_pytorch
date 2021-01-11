@@ -34,7 +34,8 @@ class StyleGANEncoderNet(nn.Module):
                encoder_channels_base=64,
                encoder_channels_max=1024,
                use_wscale=False,
-               use_bn=False):
+               use_bn=False,
+               which_latent='w'):
     """Initializes the encoder with basic settings.
 
     Args:
@@ -48,6 +49,9 @@ class StyleGANEncoderNet(nn.Module):
         of encoder. (default: 1024)
       use_wscale: Whether to use `wscale` layer. (default: False)
       use_bn: Whether to use batch normalization layer. (default: False)
+      which_latent: 'w' predict different w for all blocks; 'w_shared' predict
+        a single w for all blocks; 'wb' predict w and b (bias) for all blocks;
+        'wb_shared' predict shared w and different biases.
 
     Raises:
       ValueError: If the input `resolution` is not supported.
@@ -70,6 +74,9 @@ class StyleGANEncoderNet(nn.Module):
     self.num_blocks = int(np.log2(resolution))
     # Layers used in generator.
     self.num_layers = int(np.log2(self.resolution // self.init_res * 2)) * 2
+    self.n_latent = int(np.log2(resolution)) * 2 - 2  # copied from stylegan2 generator
+    self.n_noises = (int(np.log2(resolution)) - 2) * 2 + 1
+    self.which_latent = which_latent
 
     in_channels = self.image_channels
     out_channels = self.encoder_channels_base
@@ -82,9 +89,15 @@ class StyleGANEncoderNet(nn.Module):
                        use_wscale=self.use_wscale,
                        use_bn=self.use_bn))
 
-      elif block_idx == self.num_blocks - 1:
+      elif block_idx == self.num_blocks - 1:  # the last block
         in_channels = in_channels * self.init_res * self.init_res
-        out_channels = self.w_space_dim * 2 * block_idx
+        if self.which_latent == 'w':
+          # out_channels = self.w_space_dim * 2 * block_idx
+          out_channels = self.w_space_dim * self.n_latent
+        elif self.which_latent == 'w_shared':
+          out_channels = self.w_space_dim
+        else:
+          raise NotImplementedError
         self.add_module(
             f'block{block_idx}',
             LastBlock(in_channels=in_channels,
