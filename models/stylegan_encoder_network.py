@@ -35,7 +35,8 @@ class StyleGANEncoderNet(nn.Module):
                encoder_channels_max=1024,
                use_wscale=False,
                use_bn=False,
-               which_latent='w'):
+               which_latent='w',
+               reshape_latent=False):
     """Initializes the encoder with basic settings.
 
     Args:
@@ -77,6 +78,7 @@ class StyleGANEncoderNet(nn.Module):
     self.n_latent = int(np.log2(resolution)) * 2 - 2  # copied from stylegan2 generator
     self.n_noises = (int(np.log2(resolution)) - 2) * 2 + 1
     self.which_latent = which_latent
+    self.reshape_latent = reshape_latent
 
     in_channels = self.image_channels
     out_channels = self.encoder_channels_base
@@ -130,6 +132,8 @@ class StyleGANEncoderNet(nn.Module):
       if 0 < block_idx < self.num_blocks - 1:
         x = self.downsample(x)
       x = self.__getattr__(f'block{block_idx}')(x)
+    if self.which_latent == 'w' and self.reshape_latent:
+      x = x.reshape(x.shape[0], self.n_latent, self.w_space_dim)
     return x
 
 
